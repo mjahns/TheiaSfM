@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>My first three.js app</title>
+        <style>
+            body { margin: 0; }
+            canvas { width: 100%; height: 100% }
+        </style>
+    </head>
+    <body>
+        <script src="https://threejs.org/build/three.js"></script>
+        <script src="http://localhost:8080/client/orbit-controls.js"></script>
+        <script>
+            var reconstruction;
+            
+            fetch('http://localhost:8080/reconstruction.json')
+            .then(res => res.json())
+            .then(data => {
+                reconstruction = data;
+            })
+            .then(() => {
+                var scene = new THREE.Scene();
+                var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+                var renderer = new THREE.WebGLRenderer();
+                renderer.setSize( window.innerWidth, window.innerHeight );
+                document.body.appendChild( renderer.domElement );
+
+                var controls = new OrbitControls(camera, renderer.domElement);
+
+                //controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+				//controls.dampingFactor = 0.05;
+				controls.screenSpacePanning = false;
+				controls.minDistance = 100;
+				controls.maxDistance = 500;
+                //controls.maxPolarAngle = Math.PI / 2;
+                
+                var avgX = 0;
+                var avgY = 0;
+                var avgZ = 0;
+
+                for (var point of reconstruction.points) {
+                    var geometry = new THREE.SphereGeometry(0.1);
+                    var material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+                    var sphere = new THREE.Mesh(geometry, material);
+
+                    let x = 10 * point.position[0];
+                    let y = 10 * point.position[1];
+                    let z = 10 * point.position[2];
+
+                    avgX += x;
+                    avgY += y;
+                    avgZ += z;
+
+                    sphere.position.set(x, -y, z);
+
+                    scene.add(sphere);
+                }
+
+                var i = 0;
+
+                for (var cam of reconstruction.cameras) {
+                    /*
+                    var eye = THREE.Vector3(0, 0, 0); 
+                    var top_left = THREE.Vector3(-10, 10, 10);
+                    var bot_left = THREE.Vector3(-10, -10, 10);
+                    var top_right = THREE.Vector3(10, 10, 10);
+                    var bot_right = THREE.Vector3(10, -10, 10);
+
+                    var geometry = new THREE.Geometry();
+                    geometry.vertices.push(
+                        eye,
+                        top_left,
+                        bot_right,
+                        top_right,
+                        top_left
+                    )
+                    */
+                    var geometry = new THREE.CubeGeometry(1, 1, 1);
+                    var material = new THREE.MeshBasicMaterial({color: 0xff0000});
+                    var mesh = new THREE.Mesh(geometry, material);
+
+                    var R = new THREE.Matrix3();
+                    R.set(
+                        cam.rotation[0][0], cam.rotation[0][1], cam.rotation[0][2],
+                        cam.rotation[1][0], cam.rotation[1][1], cam.rotation[1][2],
+                        cam.rotation[2][0], cam.rotation[2][1], cam.rotation[2][2]
+                    );
+                    R.multiplyScalar(-1);
+                    R.transpose();
+
+                    var t = new THREE.Vector3(10 * cam.translation[0], 10 * cam.translation[1], 10 * cam.translation[2]);
+
+                    var position = t.applyMatrix3(R);
+
+                    mesh.position.set(position.x, -position.y, position.z);
+
+                    scene.add(mesh);
+                }
+
+                avgX /= reconstruction.points.length;
+                avgY /= reconstruction.points.length;
+                avgZ /= reconstruction.points.length;
+
+                camera.position.set(12, 85, -50);
+                camera.lookAt(avgX, avgY, avgZ);
+                controls.update();
+
+                function render_scene() {
+                    requestAnimationFrame(render_scene);
+
+                    renderer.render(scene, camera);
+                    controls.update();
+
+                    //console.log(camera.position.x.toString() + ' ' + camera.position.y.toString() + ' ' + camera.position.z.toString())
+                }
+
+                render_scene();
+            });
+        </script>
+    </body>
+</html>
